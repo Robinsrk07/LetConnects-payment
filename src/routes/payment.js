@@ -5,7 +5,8 @@ const Payment = require("../model/payment");
 const mongoose = require("mongoose");
 const User =require("../model/userSchema")
 const{membershipAmount}=require("../utils/Constants")
-const {validateWebhookSignature} = require('razorpay/dist/utils/razorpay-utils')
+const {validateWebhookSignature} = require('razorpay/dist/utils/razorpay-utils');
+const payment = require("../model/payment");
 
 
 const paymentRoute= express.Router();
@@ -24,7 +25,6 @@ paymentRoute.post("/payment/createOrder", async (req, res) => {
         }
         try {
             const authResponse = await verifyAuth(token);
-            console.log("authresponse",authResponse);
             if (!authResponse.authenticated) {
                 return res.status(401).json({ message: authResponse.message });
             }
@@ -65,10 +65,12 @@ paymentRoute.post("/payment/createOrder", async (req, res) => {
         res.status(500).json({ msg: err.message });
     }
 });
-paymentRoute.post("/payment_verify",async(req,res)=>{
 
+
+
+paymentRoute.post("/payment_verify",async(req,res)=>{
 try{
-     const webhookSignature =req.headers[" X-Razorpay-Signature"]
+     const webhookSignature =req.get(" X-Razorpay-Signature")
      const isWebhookValid = validateWebhookSignature(JSON.stringify(req.body),
      webhookSignature  , 
      process.env.RAZORPAY_WEBHOOK)
@@ -91,11 +93,39 @@ try{
 }catch(err){
     res.status(500).json({msg:err.message})
 }
-
-
-   
 })
 
+
+paymentRoute.get("/premium/verify",async(req,res)=>{
+    const token = req.cookies.token; 
+    if (!token) {
+        return res.status(401).json({ message: 'Authentication required' });
+    }
+    try{
+        const authResponse = await verifyAuth(token);
+        if (!authResponse.authenticated) {
+            return res.status(401).json({ message: authResponse.message });
+        }
+
+        const userId = authResponse.userId;
+        console.log("userid",userId);
+        const  user = await User.findById(userId)
+        if(!user){
+            return res.status(401).json({message:"user not found"})
+        }
+
+        if(user.isPremium){
+            return res.json({isPremium:true})
+        }
+        if(!user.isPremium){
+            return res.json({isPremium:false})
+        }
+        
+    }catch(err){
+        res.status(400).send("error")
+    }
+
+})
 
 
 
